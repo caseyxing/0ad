@@ -102,6 +102,6 @@
     </Run>
   </UnitMotion>
   <Vision>
-    <Range>96</Range>
+    <Range>160</Range>
   </Vision>
 </Entity>
