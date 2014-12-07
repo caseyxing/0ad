@@ -8,7 +8,7 @@
   <Attack>
     <Ranged>
       <Hack>0</Hack>
-      <Pierce>4.0</Pierce>
+      <Pierce>8.0</Pierce>
       <Crush>0</Crush>
       <MaxRange>84.0</MaxRange>
       <MinRange>0.0</MinRange>
@@ -38,7 +38,7 @@
     </SoundGroups>
   </Sound>
   <UnitMotion>
-    <WalkSpeed>9.0</WalkSpeed>
+    <WalkSpeed>8.0</WalkSpeed>
     <Run>
       <Speed>18.0</Speed>
     </Run>
