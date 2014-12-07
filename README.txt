@@ -1,3 +1,11 @@
+Current state of balancing:
+
+Experiments on ranged infantry committed. Please test ranged vs ranged battles, especially with micro.
+
+
+
+
+
  0 A.D. Introductory Information
 =================================
 
