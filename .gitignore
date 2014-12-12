@@ -1,9 +1,5 @@
 # Excluded to make the git repo smaller (those are present in SVN)
-binaries/system/ActorEditor.exe
-binaries/system/AtlasUI.dll
-binaries/system/Collada.dll
-binaries/system/pyrogenesis.exe
-binaries/system/pyrogenesis.pdb
+.gitignore
 
 # Build files
 *.so
