@@ -228,8 +228,8 @@ m.AttackPlan.prototype.getEnemyPlayer = function(gameState)
 	{
 		var moreAdvanced = undefined;
 		var enemyWonder = undefined;
-		var wonders = gameState.getEnemyStructures().filter(API3.Filters.byClass("Wonder")).toEntityArray();
-		for (var wonder of wonders)
+		var wonders = gameState.getEnemyStructures().filter(API3.Filters.byClass("Wonder"));
+		for (var wonder of wonders.values())
 		{
 			var progress = wonder.foundationProgress();
 			if (progress === undefined)
@@ -713,7 +713,7 @@ m.AttackPlan.prototype.assignUnits = function(gameState)
 		return added;
 
 	// For a rush, assign also workers (but keep a minimum number of defenders)
-	var worker = gameState.getOwnEntitiesByRole("worker", true).filter(API3.Filters.byClass("Unit"));
+	var worker = gameState.getOwnEntitiesByRole("worker", true);
 	var num = 0;
 	worker.forEach(function(ent) {
 		if (!ent.position())
@@ -1015,9 +1015,6 @@ m.AttackPlan.prototype.StartAttack = function(gameState)
 		this.unitCollection.forEach(function(ent) {
 			ent.setMetadata(PlayerID, "subrole", "walking");
 		});
-		// optimize our collection now.
-		this.unitCollection.allowQuickIter();
-
 		this.unitCollection.setStance("aggressive");
 
 		if (gameState.ai.accessibility.getAccessValue(this.targetPos) === gameState.ai.accessibility.getAccessValue(this.rallyPoint))
@@ -1176,7 +1173,7 @@ m.AttackPlan.prototype.update = function(gameState, events)
 				API3.warn("Start: Problem with path " + uneval(this.path));
 			// We're stuck, presumably. Check if there are no walls just close to us. If so, we're arrived, and we're gonna tear down some serious stone.
 			var nexttoWalls = false;
-			gameState.getEnemyEntities().filter(API3.Filters.byClass("StoneWall")).forEach( function (ent) {
+			gameState.getEnemyStructures().filter(API3.Filters.byClass("StoneWall")).forEach( function (ent) {
 				if (!nexttoWalls && API3.SquareVectorDistance(self.position, ent.position()) < 800)
 					nexttoWalls = true;
 			});
@@ -1259,8 +1256,8 @@ m.AttackPlan.prototype.update = function(gameState, events)
 			if (this.isSiegeUnit(gameState, ourUnit))
 			{
 				// if siege units are attacked, we'll send some units to deal with enemies.
-				var collec = this.unitCollection.filter(API3.Filters.not(API3.Filters.byClass("Siege"))).filterNearest(ourUnit.position(), 5).toEntityArray();
-				for (var ent of collec)
+				var collec = this.unitCollection.filter(API3.Filters.not(API3.Filters.byClass("Siege"))).filterNearest(ourUnit.position(), 5);
+				for (var ent of collec.values())
 					if (!this.isSiegeUnit(gameState, ent))
 					{
 						ent.attack(attacker.id());
@@ -1575,8 +1572,6 @@ m.AttackPlan.prototype.update = function(gameState, events)
 // reset any units
 m.AttackPlan.prototype.Abort = function(gameState)
 {
-	// Do not use QuickIter with forEach when forEach removes elements
-	this.unitCollection.preventQuickIter();
 	this.unitCollection.unregister();
 	if (this.unitCollection.length)
 	{

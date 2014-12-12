@@ -17,7 +17,6 @@ m.TradeManager = function(Config)
 m.TradeManager.prototype.init = function(gameState)
 {
 	this.traders = gameState.getOwnUnits().filter(API3.Filters.byMetadata(PlayerID, "role", "trader"));
-	this.traders.allowQuickIter();
 	this.traders.registerUpdates();
 };
 
@@ -112,6 +111,7 @@ m.TradeManager.prototype.updateTrader = function(gameState, ent)
 	if (!this.tradeRoute || !ent.isIdle() || !ent.position())
 		return;
 
+	Engine.ProfileStart("Trade Manager");
 	if (ent.hasClass("Ship"))
 		var access = ent.getMetadata(PlayerID, "sea");
 	else
@@ -122,6 +122,7 @@ m.TradeManager.prototype.updateTrader = function(gameState, ent)
 		// TODO try to garrison land trader inside merchant ship when only sea routes available
 		if (this.Config.debug > 0)
 			API3.warn(" no available route for " + ent.genericName() + " " + ent.id());
+		Engine.ProfileStop();
 		return;
 	}
 
@@ -141,6 +142,7 @@ m.TradeManager.prototype.updateTrader = function(gameState, ent)
 	else
 		ent.tradeRoute(route.source, route.target);
 	ent.setMetadata(PlayerID, "route", this.routeEntToId(route));
+	Engine.ProfileStop();
 };
 
 m.TradeManager.prototype.setTradingGoods = function(gameState)
@@ -296,12 +298,35 @@ m.TradeManager.prototype.performBarter = function(gameState)
 
 m.TradeManager.prototype.checkEvents = function(gameState, events)
 {
-	var destroyEvents = events["Destroy"];
-	for (var evt of destroyEvents)
+	// check if one market from a traderoute is renamed, change the route accordingly
+	let renameEvents = events["EntityRenamed"];
+	for (let evt of renameEvents)
+	{
+		let ent = gameState.getEntityById(evt.newentity);
+		if (!ent || !ent.hasClass("Market"))
+			continue;
+		for (let trader of this.traders.values())
+		{
+			let route = trader.getMetadata(PlayerID, "route");
+			if (!route)
+				continue;
+			if (route.source === evt.entity)
+				route.source = evt.newentity;
+			else if (route.target === evt.entity)
+				route.target = evt.newentity;
+			else
+				continue;
+			trader.setMetadata(PlayerID, "route", route);
+		}
+	}
+
+	// if one market is destroyed or built, we may have to look for a better route
+	let destroyEvents = events["Destroy"];
+	for (let evt of destroyEvents)
 	{
 		if (!evt.entityObj)
 			continue;
-		var ent = evt.entityObj;
+		let ent = evt.entityObj;
 		if (!ent || !ent.hasClass("Market") || !gameState.isPlayerAlly(ent.owner()))
 			continue;
 		if (this.Config.debug > 1)
@@ -311,6 +336,7 @@ m.TradeManager.prototype.checkEvents = function(gameState, events)
 			else
 				API3.warn("one market (or foundation) has been destroyed ... checking routes");
 		}
+		this.routeProspection = true;
 		gameState.ai.HQ.restartBuild(gameState, "structures/{civ}_market");
 		gameState.ai.HQ.restartBuild(gameState, "structures/{civ}_dock");
 		return true;
@@ -323,8 +349,8 @@ m.TradeManager.prototype.checkEvents = function(gameState, events)
 // If an index is given, it returns the best route with this index or the best land route if index is a land index 
 m.TradeManager.prototype.checkRoutes = function(gameState, accessIndex)
 {
-	var market1 = gameState.updatingCollection("OwnMarkets", API3.Filters.byClass("Market"), gameState.getOwnStructures(), true).toEntityArray();
-	var market2 = gameState.updatingCollection("ExclusiveAllyMarkets", API3.Filters.byClass("Market"), gameState.getExclusiveAllyEntities(), true).toEntityArray();
+	var market1 = gameState.updatingCollection("OwnMarkets", API3.Filters.byClass("Market"), gameState.getOwnStructures()).toEntityArray();
+	var market2 = gameState.updatingCollection("ExclusiveAllyMarkets", API3.Filters.byClass("Market"), gameState.getExclusiveAllyEntities()).toEntityArray();
 	if (market1.length + market2.length < 2)  // We have to wait  ... markets will be built soon
 	{
 		this.tradeRoute = undefined;
@@ -467,22 +493,25 @@ m.TradeManager.prototype.prospectForNewMarket = function(gameState, queues)
 		return;
 	if (!gameState.ai.HQ.canBuild(gameState, "structures/{civ}_market"))
 		return;
-	if (!gameState.updatingCollection("OwnMarkets", API3.Filters.byClass("Market"), gameState.getOwnStructures(), true).length &&
-		!gameState.updatingCollection("ExclusiveAllyMarkets", API3.Filters.byClass("Market"), gameState.getExclusiveAllyEntities(), true).length)
+	if (!gameState.updatingCollection("OwnMarkets", API3.Filters.byClass("Market"), gameState.getOwnStructures()).length &&
+		!gameState.updatingCollection("ExclusiveAllyMarkets", API3.Filters.byClass("Market"), gameState.getExclusiveAllyEntities()).length)
 		return;
 	var template = gameState.getTemplate(gameState.applyCiv("structures/{civ}_market"));
 	if (!template)
 		return;
 	this.checkRoutes(gameState);
+	Engine.ProfileStart("findMarketLocation");
 	var marketPos = gameState.ai.HQ.findMarketLocation(gameState, template);
+	Engine.ProfileStop();
 	if (!marketPos || marketPos[3] == 0)   // marketPos[3] is the expected gain
-	{
+	{	// no position found
 		gameState.ai.HQ.stopBuild(gameState, "structures/{civ}_market");
 		return;
 	}
+	this.routeProspection = false;
 	if (this.potentialTradeRoute && marketPos[3] < 2*this.potentialTradeRoute.gain
 		&& marketPos[3] < this.potentialTradeRoute.gain + 20)
-		return;
+		return;	// position found, but not enough gain compared to our present route
 
 	if (this.Config.debug > 1)
 	{
@@ -494,7 +523,6 @@ m.TradeManager.prototype.prospectForNewMarket = function(gameState, queues)
 				+ marketPos[3]);
 	}
 	queues.economicBuilding.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_market"));
-	this.routeProspection = false;
 };
 
 m.TradeManager.prototype.update = function(gameState, events, queues)
