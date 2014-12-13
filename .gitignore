@@ -1,5 +1,4 @@
 # Excluded to make the git repo smaller (those are present in SVN)
-.gitignore
 
 # Build files
 *.so
