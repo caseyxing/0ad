@@ -280,15 +280,14 @@ Attack.prototype.GetPreference = function(target)
 	const targetClasses = cmpIdentity.GetClassesList();
 
 	var minPref = null;
-	for each (var type in this.GetAttackTypes())
+	for (var type of this.GetAttackTypes())
 	{
-		for each (var targetClass in targetClasses)
+		var preferredClasses = this.GetPreferredClasses(type);
+		for (var targetClass of targetClasses)
 		{
-			var pref = this.GetPreferredClasses(type).indexOf(targetClass);
+			var pref = preferredClasses.indexOf(targetClass);
 			if (pref != -1 && (minPref === null || minPref > pref))
-			{
 				minPref = pref;
-			}
 		}
 	}
 	return minPref;
@@ -584,7 +583,7 @@ Attack.prototype.MissileHit = function(data, lateness)
 		var splashShape = this.template.Ranged.Splash.Shape;
 		var playersToDamage;
 		// If friendlyFire isn't enabled, get all player enemies to pass to "Damage.CauseSplashDamage".
-		if (friendlyFire == false)
+		if (friendlyFire == "false")
 		{
 			var cmpPlayer = Engine.QueryInterface(Engine.QueryInterface(SYSTEM_ENTITY, IID_PlayerManager).GetPlayerByID(data.playerId), IID_Player)
 			playersToDamage = cmpPlayer.GetEnemies();

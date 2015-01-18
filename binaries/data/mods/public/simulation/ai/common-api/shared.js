@@ -26,6 +26,11 @@ m.SharedScript = function(settings)
 	this._entityCollectionsByDynProp = {};
 	this._entityCollectionsUID = 0;
 	
+	// size of the map  
+	// TODO should be set in settings, for the time being recompute it assuming the passability cell size   
+	this.sizeMap = undefined;
+	this.passabilityCell = 4;
+
 	// A few notes about these maps. They're updated by checking for "create" and "destroy" events for all resources
 	// TODO: change the map when the resource amounts change for at least stone and metal mines.
 	this.resourceMaps = {}; // Contains maps showing the density of wood, stone and metal
@@ -141,14 +146,36 @@ m.SharedScript.prototype.init = function(state, deserialization)
 	this.ApplyTemplatesDelta(state);
 
 	this.passabilityClasses = state.passabilityClasses;
-	this.passabilityMap = state.passabilityMap;
 	this.players = this._players;
 	this.playersData = state.players;
-	this.territoryMap = state.territoryMap;
 	this.timeElapsed = state.timeElapsed;
 	this.circularMap = state.circularMap;
 	this.gameType = state.gameType;
 	this.barterPrices = state.barterPrices;
+
+	this.passabilityMap = state.passabilityMap;
+	this.passabilityMap.cellSize = this.passabilityCell;
+	this.sizeMap = this.passabilityMap.width * this.passabilityMap.cellSize;
+	this.territoryMap = state.territoryMap;
+	this.territoryMap.cellSize = this.sizeMap / this.territoryMap.width;
+
+/*
+	var landPassMap = new Uint8Array(this.passabilityMap.data.length);
+	var waterPassMap = new Uint8Array(this.passabilityMap.data.length);
+	var obstructionMap = new Uint8Array(this.passabilityMap.data.length);
+	var obstructionMaskLand = this.passabilityClasses["default"];
+	var obstructionMaskWater = this.passabilityClasses["ship"];
+	var obstructionMask = this.passabilityClasses["pathfinderObstruction"];
+	for (var i = 0; i < this.passabilityMap.data.length; ++i)
+	{
+		landPassMap[i] = (this.passabilityMap.data[i] & obstructionMaskLand) ? 0 : 255;
+		waterPassMap[i] = (this.passabilityMap.data[i] & obstructionMaskWater) ? 0 : 255;
+		obstructionMap[i] = (this.passabilityMap.data[i] & obstructionMask) ? 0 : 255;
+	}
+	Engine.DumpImage("LandPassMap.png", landPassMap, this.passabilityMap.width, this.passabilityMap.height, 255);
+	Engine.DumpImage("WaterPassMap.png", waterPassMap, this.passabilityMap.width, this.passabilityMap.height, 255);
+	Engine.DumpImage("ObstrctionMap.png", obstructionMap, this.passabilityMap.width, this.passabilityMap.height, 255);
+*/
 
 	if (!deserialization)
 	{
@@ -195,11 +222,14 @@ m.SharedScript.prototype.onUpdate = function(state)
 	// those are dynamic and need to be reset as the "state" object moves in memory.
 	this.events = state.events;
 	this.passabilityClasses = state.passabilityClasses;
-	this.passabilityMap = state.passabilityMap;
 	this.playersData = state.players;
-	this.territoryMap = state.territoryMap;
 	this.timeElapsed = state.timeElapsed;
 	this.barterPrices = state.barterPrices;
+
+	this.passabilityMap = state.passabilityMap;
+	this.passabilityMap.cellSize = this.sizeMap / this.passabilityMap.width;
+	this.territoryMap = state.territoryMap;
+	this.territoryMap.cellSize = this.sizeMap / this.territoryMap.width;
 	
 	for (var i in this.gameState)
 		this.gameState[i].update(this,state);

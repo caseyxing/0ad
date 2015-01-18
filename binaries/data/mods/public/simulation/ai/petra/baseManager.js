@@ -57,12 +57,14 @@ m.BaseManager.prototype.init = function(gameState, unconstructed)
 	}
 };
 
-m.BaseManager.prototype.assignEntity = function(unit)
+m.BaseManager.prototype.assignEntity = function(gameState, ent)
 {
-	unit.setMetadata(PlayerID, "base", this.ID);
-	this.units.updateEnt(unit);
-	this.workers.updateEnt(unit);
-	this.buildings.updateEnt(unit);
+	ent.setMetadata(PlayerID, "base", this.ID);
+	this.units.updateEnt(ent);
+	this.workers.updateEnt(ent);
+	this.buildings.updateEnt(ent);
+	if (ent.resourceDropsiteTypes() && !ent.hasClass("Elephant"))
+		this.assignResourceToDropsite(gameState, ent);
 };
 
 m.BaseManager.prototype.setAnchor = function(gameState, anchorEntity)
@@ -78,12 +80,12 @@ m.BaseManager.prototype.setAnchor = function(gameState, anchorEntity)
 	this.anchor.setMetadata(PlayerID, "baseAnchor", true);
 	this.buildings.updateEnt(this.anchor);
 	this.accessIndex = gameState.ai.accessibility.getAccessValue(this.anchor.position());
-	// in case all our other bases were destroyed, reaffect these destroyed bases to this base
-	for each (var base in gameState.ai.HQ.baseManagers)
+	// in case some of our other bases were destroyed, reaffect these destroyed bases to this base
+	for (var base of gameState.ai.HQ.baseManagers)
 	{
-		if (base.anchor || base.newbase)
+		if (base.anchor || base.newbaseID)
 			continue;
-		base.newbase = this.ID;
+		base.newbaseID = this.ID;
 	}
 	return true;
 };
@@ -108,31 +110,13 @@ m.BaseManager.prototype.checkEvents = function (gameState, events, queues)
 				// sounds like we lost our anchor. Let's reaffect our units and buildings
 				this.anchor = undefined;
 				this.anchorId = undefined;
-				var distmin = Math.min();
-				var basemin = undefined;
-				for each (var base in gameState.ai.HQ.baseManagers)
-				{
-					if (!base.anchor)
-						continue;
-					var dist = API3.SquareVectorDistance(base.anchor.position(), ent.position());
-					if (base.accessIndex != this.accessIndex)
-						dist += 100000000;
-					if (dist > distmin)
-						continue;
-					distmin = dist;
-					basemin = base;
-				}
-				if (!basemin)
-				{
-					if (this.Config.debug > 1)
-						API3.warn(" base " + this.ID + " destroyed and no other bases found");
-					continue;
-				}
-				this.newbase = basemin.ID;
-				this.units.forEach( function (ent) { ent.setMetadata(PlayerID, "base", basemin.ID); });
-				this.buildings.forEach( function (ent) { ent.setMetadata(PlayerID, "base", basemin.ID); });
+				let bestbase = m.getBestBase(ent, gameState);
+				this.newbaseID = bestbase.ID;
+				for (let entity of this.units.values())
+					bestbase.assignEntity(gameState, entity);
+				for (let entity of this.buildings.values())
+					bestbase.assignEntity(gameState, entity);
 			}
-			
 		}
 	}
 
@@ -146,7 +130,7 @@ m.BaseManager.prototype.checkEvents = function (gameState, events, queues)
 		if (evt.newentity == evt.entity)  // repaired building
 			continue;
 			
-		if (ent.getMetadata(PlayerID,"base") == this.ID)
+		if (ent.getMetadata(PlayerID, "base") == this.ID)
 		{
 			if (ent.resourceDropsiteTypes() && !ent.hasClass("Elephant"))
 				this.assignResourceToDropsite(gameState, ent);
@@ -189,6 +173,18 @@ m.BaseManager.prototype.assignResourceToDropsite = function (gameState, dropsite
 	this.dropsites[dropsite.id()] = true;
 
 	var self = this;
+	let dropsitePos = dropsite.position();
+	let accessIndex = this.accessIndex;
+	if (this.ID === gameState.ai.HQ.baseManagers[0].ID)
+	{
+		accessIndex = dropsite.getMetadata(PlayerID, "access");
+		if (!accessIndex)
+		{
+			accessIndex = gameState.ai.accessibility.getAccessValue(dropsitePos);
+			dropsite.setMetadata(PlayerID, "access", accessIndex);
+		}
+	}
+
 	for (var type of dropsite.resourceDropsiteTypes())
 	{
 		var resources = gameState.getResourceSupplies(type);
@@ -216,10 +212,10 @@ m.BaseManager.prototype.assignResourceToDropsite = function (gameState, dropsite
 				access = gameState.ai.accessibility.getAccessValue(supply.position());
 				supply.setMetadata(PlayerID, "access", access);
 			}
-			if (access != self.accessIndex)
+			if (access !== accessIndex)
 				return;
 
-			let dist = API3.SquareVectorDistance(supply.position(), dropsite.position());
+			let dist = API3.SquareVectorDistance(supply.position(), dropsitePos);
 			if (dist < self.maxDistResourceSquare)
 			{
 				if (dist < self.maxDistResourceSquare/16)        // distmax/4
@@ -298,17 +294,21 @@ m.BaseManager.prototype.findBestDropsiteLocation = function(gameState, resource)
 	var DPFoundations = gameState.getOwnFoundations().filter(API3.Filters.byType(gameState.applyCiv("foundation|structures/{civ}_storehouse"))).toEntityArray();
 	var ccEnts = gameState.getOwnStructures().filter(API3.Filters.byClass("CivCentre")).toEntityArray();
 
-	var width = obstructions.width;
 	var bestIdx = undefined;
 	var bestVal = undefined;
-	var radius = Math.ceil(template.obstructionRadius() / gameState.cellSize);
+	var radius = Math.ceil(template.obstructionRadius() / obstructions.cellSize);
+
+	var territoryMap = gameState.sharedScript.territoryMap;
+	var width = territoryMap.width;
+	var cellSize = territoryMap.cellSize;
 
 	for (var p = 0; p < this.territoryIndices.length; ++p)
 	{
 		var j = this.territoryIndices[p];
-		if (obstructions.map[j] <= radius)  // check room around
+		var i = API3.getMaxMapIndex(j, territoryMap, obstructions);
+		if (obstructions.map[i] <= radius)  // check room around
 			continue;
-		
+
 		// we add 3 times the needed resource and once the other two (not food)
 		var total = 0;
 		for (var i in gameState.sharedScript.resourceMaps)
@@ -322,8 +322,7 @@ m.BaseManager.prototype.findBestDropsiteLocation = function(gameState, resource)
 
 		total = 0.7*total;   // Just a normalisation factor as the locateMap is limited to 255
 
-		var pos = [j%width+0.5, Math.floor(j/width)+0.5];
-		pos = [gameState.cellSize*pos[0], gameState.cellSize*pos[1]];
+		var pos = [cellSize * (j%width+0.5), cellSize * (Math.floor(j/width)+0.5)];
 		for (var i in this.dropsites)
 		{
 			if (!gameState.getEntityById(i))
@@ -388,8 +387,9 @@ m.BaseManager.prototype.findBestDropsiteLocation = function(gameState, resource)
 
 	if (bestVal <= 0)
 		return {"quality": bestVal, "pos": [0, 0]};
-	var x = ((bestIdx % width) + 0.5) * gameState.cellSize;
-	var z = (Math.floor(bestIdx / width) + 0.5) * gameState.cellSize;
+	var i = API3.getMaxMapIndex(bestIdx, territoryMap, obstructions);
+	var x = ((i % obstructions.width) + 0.5) * obstructions.cellSize;
+	var z = (Math.floor(i / obstructions.width) + 0.5) * obstructions.cellSize;
 	return {"quality": bestVal, "pos": [x, z]};
 };
 
@@ -423,24 +423,27 @@ m.BaseManager.prototype.checkResourceLevels = function (gameState, queues)
 	{
 		if (type == "food")
 		{
-			var count = this.getResourceLevel(gameState, type);  // TODO animals are not accounted, may-be we should
-			var numFarms = gameState.countEntitiesByType(gameState.applyCiv("structures/{civ}_field"), true);
-			var numFound = gameState.countEntitiesByType(gameState.applyCiv("foundation|structures/{civ}_field"), true);
-			var numQueue = queues.field.countQueuedUnits();
+			if (gameState.ai.HQ.canBuild(gameState, "structures/{civ}_field"))	// let's see if we need to add new farms.
+			{
+				var count = this.getResourceLevel(gameState, type);  // TODO animals are not accounted, may-be we should
+				var numFarms = gameState.countEntitiesByType(gameState.applyCiv("structures/{civ}_field"), true);
+				var numFound = gameState.countEntitiesByType(gameState.applyCiv("foundation|structures/{civ}_field"), true);
+				var numQueue = queues.field.countQueuedUnits();
 
-			// TODO  if not yet farms, add a check on time used/lost and build farmstead if needed
-			if (numFarms + numFound + numQueue === 0)	// starting game, rely on fruits as long as we have enough of them
-			{
-				if (count < 600)
-					queues.field.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_field", { "base" : this.ID }));
-			}
-			else if (gameState.ai.HQ.canBuild(gameState, "structures/{civ}_field"))	// let's see if we need to add new farms.
-			{
-				let goal = this.Config.Economy.provisionFields;
-				if (gameState.ai.HQ.saveResources || gameState.ai.HQ.saveSpace)
-					goal = Math.max(goal-1, 1);
-				if (numFound + numQueue < goal)
-					queues.field.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_field", { "base" : this.ID }));
+				// TODO  if not yet farms, add a check on time used/lost and build farmstead if needed
+				if (numFarms + numFound + numQueue === 0)	// starting game, rely on fruits as long as we have enough of them
+				{
+					if (count < 600)
+						queues.field.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_field", { "base" : this.ID }));
+				}
+				else
+				{
+					let goal = this.Config.Economy.provisionFields;
+					if (gameState.ai.HQ.saveResources || gameState.ai.HQ.saveSpace)
+						goal = Math.max(goal-1, 1);
+					if (numFound + numQueue < goal)
+						queues.field.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_field", { "base" : this.ID }));
+				}
 			}
 		}
 		else if (queues.dropsites.length() == 0 && gameState.countFoundationsByType(gameState.applyCiv("structures/{civ}_storehouse"), true) == 0)
@@ -534,14 +537,14 @@ m.BaseManager.prototype.getGatherRates = function(gameState, currentRates)
 m.BaseManager.prototype.assignRolelessUnits = function(gameState)
 {
 	// TODO: make this cleverer.
-	var roleless = this.units.filter(API3.Filters.not(API3.Filters.byHasMetadata(PlayerID, "role")));
-	var self = this;
-	roleless.forEach(function(ent) {
+	var roleless = this.units.filter(API3.Filters.not(API3.Filters.byHasMetadata(PlayerID, "role"))).values();
+	for (var ent of roleless)
+	{
 		if (ent.hasClass("Worker") || ent.hasClass("CitizenSoldier") || ent.hasClass("FishingBoat"))
 			ent.setMetadata(PlayerID, "role", "worker");
 		else if (ent.hasClass("Support") && ent.hasClass("Elephant"))
 			ent.setMetadata(PlayerID, "role", "worker");
-	});
+	}
 };
 
 // If the numbers of workers on the resources is unbalanced then set some of workers to idle so
@@ -549,9 +552,6 @@ m.BaseManager.prototype.assignRolelessUnits = function(gameState)
 // TODO: actually this probably should be in the HQ.
 m.BaseManager.prototype.setWorkersIdleByPriority = function(gameState)
 {
-	if (gameState.currentPhase() < 2)
-		return;
-
 	// change resource only towards one which is more needed, and if changing will not change this order
 	var nb = 1;    // no more than 1 change per turn (otherwise we should update the rates)
 	var mostNeeded = gameState.ai.HQ.pickMostNeededResources(gameState);
@@ -750,7 +750,7 @@ m.BaseManager.prototype.assignToFoundations = function(gameState, noRepair)
 
 	if (workers.length < 2)
 	{
-		var noobs = gameState.ai.HQ.bulkPickWorkers(gameState, this.ID, 2);
+		var noobs = gameState.ai.HQ.bulkPickWorkers(gameState, this, 2);
 		if(noobs)
 		{
 			noobs.forEach(function (worker) {
@@ -774,6 +774,10 @@ m.BaseManager.prototype.assignToFoundations = function(gameState, noRepair)
 			if (!target.hasClass("CivCentre") && !target.hasClass("StoneWall") && (!target.hasClass("Wonder") || gameState.getGameType() !== "wonder"))
 				continue;
 
+		// if our territory has shrinked since this foundation was positioned, do not build it
+		if (m.isNotWorthBuilding(target, gameState))
+			continue;
+
 		var assigned = gameState.getOwnEntitiesByMetadata("target-foundation", target.id()).length;
 		var maxTotalBuilders = Math.ceil(workers.length * 0.2);
 		var targetNB = 2;
@@ -787,6 +791,12 @@ m.BaseManager.prototype.assignToFoundations = function(gameState, noRepair)
 		{
 			targetNB = 15;
 			maxTotalBuilders = Math.max(maxTotalBuilders, 15);
+		}
+		// if no base yet, everybody should build
+		if (gameState.ai.HQ.numActiveBase() === 0)
+		{
+			targetNB = workers.length;
+			maxTotalBuilders = targetNB;
 		}
 
 		if (assigned < targetNB)
@@ -915,19 +925,49 @@ m.BaseManager.prototype.assignToFoundations = function(gameState, noRepair)
 
 m.BaseManager.prototype.update = function(gameState, queues, events)
 {
-	if (!this.anchor)   // this base has been destroyed
+	if (this.ID === gameState.ai.HQ.baseManagers[0].ID)	// base for unaffected units
 	{
-		// transfer possible remaining units (probably they were in training during previous transfers)
-		if (this.newbase)
+		// if some active base, reassigns the workers/buildings
+		// otherwise look for anything useful to do, i.e. treasures to gather
+		if (gameState.ai.HQ.numActiveBase() > 0)
 		{
-			var newbase = this.newbase;
-			this.units.forEach( function (ent) { ent.setMetadata(PlayerID, "base", newbase); });
-			this.buildings.forEach( function (ent) { ent.setMetadata(PlayerID, "base", newbase); });
+			for (var ent of this.units.values())
+				m.getBestBase(ent, gameState).assignEntity(gameState, ent);
+			for (var ent of this.buildings.values())
+			{
+				if (ent.resourceDropsiteTypes() && !ent.hasClass("Elephant"))
+					this.removeDropsite(gameState, ent);
+				m.getBestBase(ent, gameState).assignEntity(gameState, ent);
+			}
+		}
+		else if (gameState.ai.HQ.canBuildUnits)
+		{
+			this.assignToFoundations(gameState);
+			if (gameState.ai.playedTurn % 4 === 0)
+				this.setWorkersIdleByPriority(gameState);
+			this.assignRolelessUnits(gameState);
+			this.reassignIdleWorkers(gameState);
+			for (var ent of this.workers.values())
+				this.workerObject.update(ent, gameState);
 		}
 		return;
 	}
 
-	if (this.anchor && this.anchor.getMetadata(PlayerID, "access") != this.accessIndex)
+	if (!this.anchor)   // this base has been destroyed
+	{
+		// transfer possible remaining units (probably they were in training during previous transfers)
+		if (this.newbaseID)
+		{
+			var newbaseID = this.newbaseID;
+			for (let ent of this.units.values())
+				ent.setMetadata(PlayerID, "base", newbaseID);
+			for (let ent of this.buildings.values())
+				ent.setMetadata(PlayerID, "base", newbaseID);
+		}
+		return;
+	}
+
+	if (this.anchor.getMetadata(PlayerID, "access") != this.accessIndex)
 		API3.warn("Petra baseManager " + this.ID + " problem with accessIndex " + this.accessIndex
 			+ " while metadata access is " + this.anchor.getMetadata(PlayerID, "access"));
 
@@ -936,7 +976,7 @@ m.BaseManager.prototype.update = function(gameState, queues, events)
 	this.checkResourceLevels(gameState, queues);
 	this.assignToFoundations(gameState);
 
-	if (this.constructing && this.anchor)
+	if (this.constructing)
 	{
 		var owner = gameState.ai.HQ.territoryMap.getOwner(this.anchor.position());
 		if(owner !== 0 && !gameState.isPlayerAlly(owner))
@@ -955,17 +995,14 @@ m.BaseManager.prototype.update = function(gameState, queues, events)
 		}
 	}
 
-	if (gameState.ai.playedTurn % 2 == 0)
+	if (gameState.ai.playedTurn % 2 === 0 && gameState.currentPhase() > 1)
 		this.setWorkersIdleByPriority(gameState);
 
 	this.assignRolelessUnits(gameState);
-	
-	// should probably be last to avoid reallocations of units that would have done stuffs otherwise.
 	this.reassignIdleWorkers(gameState);
-
-	// TODO: do this incrementally a la defense.js
-	var self = this;
-	this.workers.forEach(function(ent) { self.workerObject.update(ent, gameState); });
+	// check if workers can find something useful to do
+	for (var ent of this.workers.values())
+		this.workerObject.update(ent, gameState);
 
 	Engine.ProfileStop();
 };

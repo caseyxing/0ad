@@ -6,28 +6,41 @@ var API3 = function(m)
  */
 
 // The function needs to be named too because of the copyConstructor functionality
-m.Map = function Map(sharedScript, originalMap, actualCopy)
+m.Map = function Map(sharedScript, type, originalMap, actualCopy)
 {
-	// get the map to find out the correct dimensions
-	var gameMap = sharedScript.passabilityMap;
-	this.width = gameMap.width;
-	this.height = gameMap.height;
-	this.length = gameMap.data.length;
-	
+	// get the correct dimensions according to the map type
+	if (type === "territory" || type === "resource")
+	{
+		var map = sharedScript.territoryMap;
+		this.width = map.width;
+		this.height = map.height;
+		this.cellSize = map.cellSize;
+	}
+	else
+	{
+		var map = sharedScript.passabilityMap;
+		this.width = map.width;
+		this.height = map.height;
+		this.cellSize = map.cellSize;
+	}
+	this.length = this.width * this.height;
+
 	this.maxVal = 255;
+
+	// sanity check
+	if (originalMap && originalMap.length !== this.length)
+		warn("AI map size incompatibility with type " + type + ": original " + originalMap.length + " new " + this.length); 
 
 	if (originalMap && actualCopy)
 	{
 		this.map = new Uint8Array(this.length);
-		for (let i = 0; i < originalMap.length; ++i)
+		for (let i = 0; i < this.length; ++i)
 			this.map[i] = originalMap[i];
 	}
 	else if (originalMap)
 		this.map = originalMap;
 	else
 		this.map = new Uint8Array(this.length);
-
-	this.cellSize = 4;
 };
 
 m.Map.prototype.setMaxVal = function(val)
@@ -43,8 +56,8 @@ m.Map.prototype.gamePosToMapPos = function(p)
 m.Map.prototype.point = function(p)
 {
 	var q = this.gamePosToMapPos(p);
-	q[0] = q[0] >= this.width ? this.width : (q[0] < 0 ? 0 : q[0]);
-	q[1] = q[1] >= this.width ? this.width : (q[1] < 0 ? 0 : q[1]);
+	q[0] = q[0] >= this.width ? this.width-1 : (q[0] < 0 ? 0 : q[0]);
+	q[1] = q[1] >= this.width ? this.width-1 : (q[1] < 0 ? 0 : q[1]);
 	return this.map[q[0] + this.width * q[1]];
 };
 
@@ -382,37 +395,41 @@ m.Map.prototype.findBestTile = function(radius, obstructionTiles)
 	let bestVal = -1;
 	for (let i = 0; i < this.length; ++i)
 	{
-		if (obstructionTiles.map[i] > radius)
+		let v = this.map[i];
+		if (v > bestVal)
 		{
-			let v = this.map[i];
-			if (v > bestVal)
-			{
-				bestVal = v;
-				bestIdx = i;
-			}
+			var j = API3.getMaxMapIndex(i, this, obstructionTiles);
+			if (obstructionTiles.map[j] <= radius)
+				continue;
+			bestVal = v;
+			bestIdx = j;
 		}
 	}
 	
 	return [bestIdx, bestVal];
 };
 
-// returns the point with the lowest radius in the immediate vicinity
-m.Map.prototype.findLowestNeighbor = function(x,y)
+// returns the point with the lowest (but still > radius) point in the immediate vicinity
+m.Map.prototype.findLowestNeighbor = function(x,y,radius)
 {
 	var lowestPt = [0,0];
-	var lowestcoeff = 99999;
-	x = Math.floor(x/4);
-	y = Math.floor(y/4);
+	var lowestcoeff = undefined;
+	x = Math.floor(x/this.cellSize);
+	y = Math.floor(y/this.cellSize);
 	for (let xx = x-1; xx <= x+1; ++xx)
+	{
 		for (let yy = y-1; yy <= y+1; ++yy)
-			if (xx >= 0 && xx < this.width && yy >= 0 && yy < this.width)
-				if (this.map[xx+yy*this.width] <= lowestcoeff)
-				{
-					lowestcoeff = this.map[xx+yy*this.width];
-					lowestPt = [(xx+0.5)*4, (yy+0.5)*4];
-				}
+		{
+			if (xx < 0 || xx >= this.width || yy < 0 || yy >= this.width)
+				continue;
+			if (lowestcoeff && this.map[xx+yy*this.width] > lowestcoeff)
+				continue;
+			lowestcoeff = this.map[xx+yy*this.width];
+			lowestPt = [(xx+0.5)*4, (yy+0.5)*4];
+		}
+	}
 	return lowestPt;
-}
+};
 
 m.Map.prototype.dumpIm = function(name, threshold)
 {
