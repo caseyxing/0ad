@@ -3,7 +3,7 @@
   <Armour>
     <Hack>3</Hack>
     <Pierce>1</Pierce>
-    <Crush>3</Crush>
+    <Crush>15</Crush>
   </Armour>
   <Attack>
     <Slaughter>
@@ -21,7 +21,7 @@
     </Resources>
   </Cost>
   <Footprint replace="">
-    <Square width="3" depth="5"/>
+    <Square width="4" depth="6"/>
     <Height>7.5</Height>
   </Footprint>
   <Health>

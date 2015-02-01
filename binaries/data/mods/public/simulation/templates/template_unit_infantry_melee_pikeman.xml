@@ -3,7 +3,6 @@
   <Armour>
     <Hack>10</Hack>
     <Pierce>10</Pierce>
-    <Crush>6</Crush>
   </Armour>
   <Attack>
     <Melee>
@@ -11,11 +10,23 @@
       <Pierce>2.5</Pierce>
       <MaxRange>8.0</MaxRange>
       <RepeatTime>1500</RepeatTime>
+      <Bonuses>
+          <BonusCavMelee>
+            <Classes>Cavalry</Classes>
+            <Multiplier>2.0</Multiplier>
+          </BonusCavMelee>
+      </Bonuses>
     </Melee>
     <Charge>
       <Hack>8.0</Hack>
       <Pierce>16.0</Pierce>
       <MaxRange>8.0</MaxRange>
+      <Bonuses>
+          <BonusCavMelee>
+            <Classes>Cavalry</Classes>
+            <Multiplier>2.0</Multiplier>
+          </BonusCavMelee>
+      </Bonuses>
     </Charge>
   </Attack>
   <Cost>
@@ -27,7 +38,8 @@
   <Identity>
     <VisibleClasses datatype="tokens">Spear Pike</VisibleClasses>
     <GenericName>Pikeman</GenericName>
-	<History>Pike, or sarissa, infantry were developed by Philip II of Macedon based on the hoplite of the Greek city-states. The Macedonian pikemen, or phalangites, wielded an extra long spear (sarissa) approximatly 4 to 7 meters (13–21 feet) in length. Because of it's length and weight, the pike required the use of both hands, so the shield was slung over the pikeman's shoulder with a leather strap. Front-line pikemen of the age were generally highly-armored, while those in the back lines were lightly armored. Such pike-wielding troops were employed by numerous states, from Carthage to Syria, and were used to fix enemy infantry in position while the army's cavalry worked to turn the enemy flanks.</History>
+    <History>Pike, or sarissa, infantry were developed by Philip II of Macedon based on the hoplite of the Greek city-states. The Macedonian pikemen, or phalangites, wielded an extra long spear (sarissa) approximatly 4 to 7 meters (13–21 feet) in length. Because of it's length and weight, the pike required the use of both hands, so the shield was slung over the pikeman's shoulder with a leather strap. Front-line pikemen of the age were generally highly-armored, while those in the back lines were lightly armored. Such pike-wielding troops were employed by numerous states, from Carthage to Syria, and were used to fix enemy infantry in position while the army's cavalry worked to turn the enemy flanks.</History>
+    <Tooltip>Counters: 2x vs. Cavalry.</Tooltip>
     <Formations datatype="tokens">
       formations/syntagma
     </Formations>

@@ -3,13 +3,12 @@
   <Armour>
     <Hack>1</Hack>
     <Pierce>1</Pierce>
-    <Crush>3</Crush>
   </Armour>
   <Attack>
     <Ranged>
       <Hack>0</Hack>
       <Pierce>12.0</Pierce>
-      <Crush>2.0</Crush>
+      <Crush>2.5</Crush>
       <MaxRange>60.0</MaxRange>
       <MinRange>0.0</MinRange>
       <ProjectileSpeed>60.0</ProjectileSpeed>

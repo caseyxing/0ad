@@ -3,7 +3,7 @@
   <Armour>
     <Hack>1</Hack>
     <Pierce>1</Pierce>
-    <Crush>3</Crush>
+    <Crush>10</Crush>
   </Armour>
   <Attack>
     <Ranged>
@@ -20,7 +20,7 @@
     </Ranged>
   </Attack>
   <Health>
-    <Max>60</Max>
+    <Max>50</Max>
   </Health>
   <Identity>
     <GenericName>Ranged</GenericName>
