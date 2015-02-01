@@ -12,6 +12,7 @@ m.TradeManager = function(Config)
 	this.potentialTradeRoute = undefined;
 	this.routeProspection = false;
 	this.targetNumTraders = Math.round(this.Config.popScaling * this.Config.Economy.targetNumTraders);
+	this.warnedAllies = {};
 };
 
 m.TradeManager.prototype.init = function(gameState)
@@ -369,7 +370,7 @@ m.TradeManager.prototype.checkRoutes = function(gameState, accessIndex)
 		if (!m1.position())
 			continue;
 		var access1 = gameState.ai.accessibility.getAccessValue(m1.position());
-		var sea1 = m1.hasClass("Dock") ? gameState.ai.HQ.navalManager.getDockIndex(gameState, m1, true) : undefined;
+		var sea1 = m1.hasClass("NavalMarket") ? gameState.ai.HQ.navalManager.getDockIndex(gameState, m1, true) : undefined;
 		for (var m2 of market2)
 		{
 			if (m1.id() === m2.id())
@@ -377,7 +378,7 @@ m.TradeManager.prototype.checkRoutes = function(gameState, accessIndex)
 			if (!m2.position())
 				continue;
 			var access2 = gameState.ai.accessibility.getAccessValue(m2.position());
-			var sea2 = m2.hasClass("Dock") ? gameState.ai.HQ.navalManager.getDockIndex(gameState, m2, true) : undefined;
+			var sea2 = m2.hasClass("NavalMarket") ? gameState.ai.HQ.navalManager.getDockIndex(gameState, m2, true) : undefined;
 			var land = (access1 == access2) ? access1 : undefined;
 			var sea = (sea1 && sea1 == sea2) ? sea1 : undefined;
 			if (!land && !sea)
@@ -438,6 +439,18 @@ m.TradeManager.prototype.checkRoutes = function(gameState, accessIndex)
 		API3.warn("one trade route set with gain " + candidate.gain);
 	this.tradeRoute = candidate;
 
+	if (this.Config.chat)
+	{
+		var owner = this.tradeRoute.source.owner();
+		if (owner === PlayerID)
+			owner = this.tradeRoute.target.owner();
+		if (owner !== PlayerID && !this.warnedAllies[owner])
+		{	// Warn an ally that we have a trade route with him
+			m.chatNewTradeRoute(gameState, owner);
+			this.warnedAllies[owner] = true;
+		}
+	}
+
 	if (accessIndex)
 	{
 		if (bestIndex.gain > 0)
@@ -489,7 +502,7 @@ m.TradeManager.prototype.checkTrader = function(gameState, ent)
 
 m.TradeManager.prototype.prospectForNewMarket = function(gameState, queues)
 {
-	if (queues.economicBuilding.countQueuedUnitsWithClass("Market") > 0)
+	if (queues.economicBuilding.countQueuedUnitsWithClass("Market") + queues.dock.countQueuedUnitsWithClass("Market") > 0)
 		return;
 	if (!gameState.ai.HQ.canBuild(gameState, "structures/{civ}_market"))
 		return;
@@ -507,8 +520,7 @@ m.TradeManager.prototype.prospectForNewMarket = function(gameState, queues)
 		return;
 	}
 	this.routeProspection = false;
-	if (this.potentialTradeRoute && marketPos[3] < 2*this.potentialTradeRoute.gain
-		&& marketPos[3] < this.potentialTradeRoute.gain + 20)
+	if (!this.isNewMarketWorth(marketPos[3]))
 		return;	// position found, but not enough gain compared to our present route
 
 	if (this.Config.debug > 1)
@@ -521,6 +533,14 @@ m.TradeManager.prototype.prospectForNewMarket = function(gameState, queues)
 				+ marketPos[3]);
 	}
 	queues.economicBuilding.addItem(new m.ConstructionPlan(gameState, "structures/{civ}_market"));
+};
+
+m.TradeManager.prototype.isNewMarketWorth = function(expectedGain)
+{
+	if (this.potentialTradeRoute && expectedGain < 2*this.potentialTradeRoute.gain
+		&& expectedGain < this.potentialTradeRoute.gain + 20)
+		return false;
+	return true;
 };
 
 m.TradeManager.prototype.update = function(gameState, events, queues)
@@ -576,7 +596,8 @@ m.TradeManager.prototype.Serialize = function()
 		"tradeRoute": this.routeEntToId(this.tradeRoute),
 		"potentialTradeRoute": this.routeEntToId(this.potentialTradeRoute),
 		"routeProspection": this.routeProspection,
-		"targetNumTraders": this.targetNumTraders
+		"targetNumTraders": this.targetNumTraders,
+		"warnedAllies": this.warnedAllies
 	};
 }
 
@@ -586,6 +607,7 @@ m.TradeManager.prototype.Deserialize = function(gameState, data)
 	this.potentialTradeRoute = this.routeIdToEnt(gameState, data.potentialTradeRoute);
 	this.routeProspection = data.routeProspection;
 	this.targetNumTraders = data.targetNumTraders;
+	this.warnedAllies = data.warnedAllies;
 }
 
 return m;

@@ -37,7 +37,7 @@ m.AttackPlan = function(gameState, Config, uniqueID, type, data)
 	
 	// get a starting rallyPoint ... will be improved later
 	var rallyPoint = undefined;
-	for each (var base in gameState.ai.HQ.baseManagers)
+	for (var base of gameState.ai.HQ.baseManagers)
 	{
 		if (!base.anchor || !base.anchor.position())
 			continue;
@@ -413,7 +413,7 @@ m.AttackPlan.prototype.updatePreparation = function(gameState, events)
 			var rallySame = undefined;
 			var distminDiff = Math.min();
 			var rallyDiff = undefined;
-			for each (var base in gameState.ai.HQ.baseManagers)
+			for (var base of gameState.ai.HQ.baseManagers)
 			{
 				var anchor = base.anchor;
 				if (!anchor || !anchor.position())
@@ -526,12 +526,13 @@ m.AttackPlan.prototype.updatePreparation = function(gameState, events)
 
 	var rallyPoint = this.rallyPoint;
 	var rallyIndex = gameState.ai.accessibility.getAccessValue(rallyPoint);
-	this.unitCollection.forEach(function (entity) {
+	for (var entity of this.unitCollection.values())
+	{
 		// For the time being, if occupied in a transport, remove the unit from this plan   TODO improve that
 		if (entity.getMetadata(PlayerID, "transport") !== undefined || entity.getMetadata(PlayerID, "transporter") !== undefined)
 		{
 			entity.setMetadata(PlayerID, "plan", -1);
-			return;
+			continue;
 		}
 		entity.setMetadata(PlayerID, "role", "attack");
 		entity.setMetadata(PlayerID, "subrole", "completing");
@@ -543,7 +544,7 @@ m.AttackPlan.prototype.updatePreparation = function(gameState, events)
 			entity.moveToRange(rallyPoint[0], rallyPoint[1], 0, 15, queued);
 		else
 			gameState.ai.HQ.navalManager.requireTransport(gameState, entity, index, rallyIndex, rallyPoint);
-	});
+	}
 
 	// reset all queued units
 	var plan = this.name;
@@ -685,19 +686,20 @@ m.AttackPlan.prototype.assignUnits = function(gameState)
 	}
 
 	var noRole = gameState.getOwnEntitiesByRole(undefined, false).filter(API3.Filters.byClass("Unit"));
-	noRole.forEach(function(ent) {
+	for (var ent of noRole.values())
+	{
 		if (!ent.position())
-			return;
+			continue;
 		if (ent.getMetadata(PlayerID, "plan") !== undefined && ent.getMetadata(PlayerID, "plan") !== -1)
-			return;
+			continue;
 		if (ent.getMetadata(PlayerID, "transport") !== undefined || ent.getMetadata(PlayerID, "transporter") !== undefined)
-			return;
+			continue;
 		if (ent.hasClass("Ship") || ent.hasClass("Support") || ent.attackTypes() === undefined)
-			return;
+			continue;
 		ent.setMetadata(PlayerID, "plan", plan);
 		self.unitCollection.updateEnt(ent);
 		added = true;
-	});
+	}
 	// Add units previously in a plan, but which left it because needed for defense or attack finished
 	gameState.ai.HQ.attackManager.outOfPlan.forEach(function(ent) {
 		if (!ent.position())
@@ -715,21 +717,22 @@ m.AttackPlan.prototype.assignUnits = function(gameState)
 	// For a rush, assign also workers (but keep a minimum number of defenders)
 	var worker = gameState.getOwnEntitiesByRole("worker", true);
 	var num = 0;
-	worker.forEach(function(ent) {
+	for (var ent of worker.values())
+	{
 		if (!ent.position())
-			return;
+			continue;
 		if (ent.getMetadata(PlayerID, "plan") !== undefined && ent.getMetadata(PlayerID, "plan") !== -1)
-			return;
+			continue;
 		if (ent.getMetadata(PlayerID, "transport") !== undefined)
-			return;
+			continue;
 		if (ent.hasClass("Ship") || ent.hasClass("Support") || ent.attackTypes() === undefined)
-			return;
+			continue;
 		if (num++ < 9)
-			return;
+			continue;
 		ent.setMetadata(PlayerID, "plan", plan);
 		self.unitCollection.updateEnt(ent);
 		added = true;
-	});
+	}
 	return added;
 };
 
@@ -737,15 +740,15 @@ m.AttackPlan.prototype.assignUnits = function(gameState)
 m.AttackPlan.prototype.reassignCavUnit = function(gameState)
 {
 	var found = undefined;
-	this.unitCollection.forEach(function(ent) {
-		if (found)
-			return;
+	for (var ent of this.unitCollection.values())
+	{
 		if (!ent.position() || ent.getMetadata(PlayerID, "transport") !== undefined)
-			return;
+			continue;
 		if (!ent.hasClass("Cavalry") || !ent.hasClass("CitizenSoldier"))
-			return;
+			continue;
 		found = ent;
-	});
+		break;
+	}
 	if (!found)
 		return;
 	let raid = gameState.ai.HQ.attackManager.getAttackInPreparation("Raid");
@@ -771,18 +774,19 @@ m.AttackPlan.prototype.getNearestTarget = function(gameState, position, sameLand
 	// picking the nearest target
 	var minDist = -1;
 	var target = undefined;
-	targets.forEach(function (ent) {
+	for (var ent of targets.values())
+	{
 		if (!ent.position())
-			return;
+			continue;
 		if (sameLand && gameState.ai.accessibility.getAccessValue(ent.position()) != land)
-			return;
+			continue;
 		var dist = API3.SquareVectorDistance(ent.position(), position);
 		if (dist < minDist || minDist == -1)
 		{
 			minDist = dist;
 			target = ent;
 		}
-	});
+	}
 	if (!target)
 		return undefined;
 	// Rushes can change their enemy target if nothing found with the preferred enemy
@@ -1012,9 +1016,8 @@ m.AttackPlan.prototype.StartAttack = function(gameState)
 		
 		var curPos = this.unitCollection.getCentrePosition();
 		
-		this.unitCollection.forEach(function(ent) {
+		for (var ent of this.unitCollection.values())
 			ent.setMetadata(PlayerID, "subrole", "walking");
-		});
 		this.unitCollection.setStance("aggressive");
 
 		if (gameState.ai.accessibility.getAccessValue(this.targetPos) === gameState.ai.accessibility.getAccessValue(this.rallyPoint))
@@ -1036,9 +1039,8 @@ m.AttackPlan.prototype.StartAttack = function(gameState)
 			var endPos = this.targetPos;
 			// TODO require a global transport for the collection,
 			// and put back its state to "walking" when the transport is finished
-			this.unitCollection.forEach(function (entity) {
-				gameState.ai.HQ.navalManager.requireTransport(gameState, entity, startIndex, endIndex, endPos);
-			});
+			for (var ent of this.unitCollection.values())
+				gameState.ai.HQ.navalManager.requireTransport(gameState, ent, startIndex, endIndex, endPos);
 		}
 	}
 	else
@@ -1069,16 +1071,17 @@ m.AttackPlan.prototype.update = function(gameState, events)
 	if (this.state === "transporting")
 	{
 		var done = true;
-		this.unitCollection.forEach(function (entity) {
-			if (self.Config.debug > 1 && entity.getMetadata(PlayerID, "transport") !== undefined)
-				Engine.PostCommand(PlayerID,{"type": "set-shading-color", "entities": [entity.id()], "rgb": [2,2,0]});
-			else if (self.Config.debug > 1)
-				Engine.PostCommand(PlayerID,{"type": "set-shading-color", "entities": [entity.id()], "rgb": [1,1,1]});
+		for (var ent of this.unitCollection.values())
+		{
+			if (this.Config.debug > 1 && ent.getMetadata(PlayerID, "transport") !== undefined)
+				Engine.PostCommand(PlayerID,{"type": "set-shading-color", "entities": [ent.id()], "rgb": [2,2,0]});
+			else if (this.Config.debug > 1)
+				Engine.PostCommand(PlayerID,{"type": "set-shading-color", "entities": [ent.id()], "rgb": [1,1,1]});
 			if (!done)
-				return;
-			if (entity.getMetadata(PlayerID, "transport") !== undefined)
+				continue;
+			if (ent.getMetadata(PlayerID, "transport") !== undefined)
 				done = false;
-		});
+		}
 
 		if (done)
 			this.state = "arrived";
@@ -1094,13 +1097,14 @@ m.AttackPlan.prototype.update = function(gameState, events)
 				var ourUnit = gameState.getEntityById(evt.target);
 				if (!attacker || !ourUnit)
 					continue;
-				this.unitCollection.forEach(function (entity) {
-					if (entity.getMetadata(PlayerID, "transport") !== undefined)
-						return;
-					if (!entity.isIdle())
-						return;
-					entity.attack(attacker.id());
-				});
+				for (var ent of this.unitCollection.values())
+				{
+					if (ent.getMetadata(PlayerID, "transport") !== undefined)
+						continue;
+					if (!ent.isIdle())
+						continue;
+					ent.attack(attacker.id());
+				}
 				break;
 			}
 		}
@@ -1135,10 +1139,9 @@ m.AttackPlan.prototype.update = function(gameState, events)
 		if (attackedUnitNB == 0)
 		{
 			var siegeNB = 0;
-			this.unitCollection.forEach( function (ent) {
-				if (self.isSiegeUnit(gameState, ent))
+			for (var ent of this.unitCollection.values())
+				if (this.isSiegeUnit(gameState, ent))
 					siegeNB++;
-			});
 			if (siegeNB == 0)
 				maybe = false;
 		}
@@ -1254,28 +1257,45 @@ m.AttackPlan.prototype.update = function(gameState, events)
 				continue;
 			var ourUnit = gameState.getEntityById(evt.target);
 			if (this.isSiegeUnit(gameState, ourUnit))
-			{
-				// if siege units are attacked, we'll send some units to deal with enemies.
+			{	// if our siege units are attacked, we'll send some units to deal with enemies.
 				var collec = this.unitCollection.filter(API3.Filters.not(API3.Filters.byClass("Siege"))).filterNearest(ourUnit.position(), 5);
 				for (var ent of collec.values())
-					if (!this.isSiegeUnit(gameState, ent))
+				{
+					if (this.isSiegeUnit(gameState, ent))	// needed as mauryan elephants are not filtered out
+						continue;
+					ent.attack(attacker.id());
+					ent.setMetadata(PlayerID, "lastAttackPlanUpdateTime", time);
+				}
+				// And if this attacker is a non-ranged siege unit and our unit also, attack it
+				if (this.isSiegeUnit(gameState, attacker) && attacker.hasClass("Melee") && ourUnit.hasClass("Melee"))
+				{
+					ourUnit.attack(attacker.id());
+					ourUnit.setMetadata(PlayerID, "lastAttackPlanUpdateTime", time);
+				}
+			}
+			else
+			{
+				if (this.isSiegeUnit(gameState, attacker))
+				{	// if our unit is attacked by a siege unit, we'll send some melee units to help it.
+					var collec = this.unitCollection.filter(API3.Filters.byClass("Melee")).filterNearest(ourUnit.position(), 5);
+					for (var ent of collec.values())
 					{
 						ent.attack(attacker.id());
 						ent.setMetadata(PlayerID, "lastAttackPlanUpdateTime", time);
 					}
-			}
-			else
-			{
-				// if units are attacked, abandon their target (if it was a structure or a support) and retaliate
-				var orderData = ourUnit.unitAIOrderData();
-				if (orderData.length !== 0 && orderData[0]["target"])
-				{
-					var target = gameState.getEntityById(orderData[0]["target"]);
-					if (target && !target.hasClass("Structure") && !target.hasClass("Support"))
-						continue;
 				}
-				ourUnit.attack(attacker.id());
-				ourUnit.setMetadata(PlayerID, "lastAttackPlanUpdateTime", time);
+				else
+				{	// if units are attacked, abandon their target (if it was a structure or a support) and retaliate
+					var orderData = ourUnit.unitAIOrderData();
+					if (orderData.length !== 0 && orderData[0]["target"])
+					{
+						var target = gameState.getEntityById(orderData[0]["target"]);
+						if (target && !target.hasClass("Structure") && !target.hasClass("Support"))
+							continue;
+					}
+					ourUnit.attack(attacker.id());
+					ourUnit.setMetadata(PlayerID, "lastAttackPlanUpdateTime", time);
+				}
 			}
 		}
 		
@@ -1339,7 +1359,7 @@ m.AttackPlan.prototype.update = function(gameState, events)
 				var target = gameState.getEntityById(orderData["target"]);
 				if (!target)
 					needsUpdate = true;
-				else if (target.hasClass("Structure"))
+				else if (target.hasClass("Structure") || (target.hasClass("Ship") && !ent.hasClass("Ship")))
 					maybeUpdate = true;
 				else if (!ent.hasClass("Cavalry") && !ent.hasClass("Ranged")
 					&& target.hasClass("Female") && target.unitAIState().split(".")[1] == "FLEEING")
@@ -1407,7 +1427,15 @@ m.AttackPlan.prototype.update = function(gameState, events)
 					}
 				}
 				else
-					ent.attackMove(self.targetPos[0], self.targetPos[1], targetClassesSiege);
+				{
+					if (!ent.hasClass("Ranged"))
+					{
+						let targetClasses = {"attack": targetClassesSiege.attack, "avoid": ["Ship"]};
+						ent.attackMove(self.targetPos[0], self.targetPos[1], targetClasses);
+					}
+					else
+						ent.attackMove(self.targetPos[0], self.targetPos[1], targetClassesSiege);
+				}
 			}
 			else
 			{
@@ -1450,7 +1478,13 @@ m.AttackPlan.prototype.update = function(gameState, events)
 				}
 				else if (API3.SquareVectorDistance(self.targetPos, ent.position()) > 2500 )
 				{
-					ent.attackMove(self.targetPos[0], self.targetPos[1], targetClassesUnit);
+					if (!ent.hasClass("Ranged") && !ent.hasClass("Ship"))
+					{
+						let targetClasses = {"attack": targetClassesUnit.attack, "avoid": targetClassesUnit.avoid.concat("Ship")};
+						ent.attackMove(self.targetPos[0], self.targetPos[1], targetClasses);
+					}
+					else
+						ent.attackMove(self.targetPos[0], self.targetPos[1], targetClassesUnit);
 					ent.attackMove(self.targetPos[0], self.targetPos[1], {"attack": ["Unit", "Structure"]}, true);   // in case we are blocked by walls
 				}
 				else

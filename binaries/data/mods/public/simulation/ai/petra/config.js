@@ -27,8 +27,8 @@ m.Config = function(difficulty)
 		"popForDock" : 25,
 		"targetNumTraders" : 4, // Target number of traders
 		"targetNumFishers" : 1, // Target number of fishers per sea
-		"femaleRatio" : 0.5, // percent of females among the workforce.
-		"provisionFields" : 3
+		"femaleRatio" : 0.5, // fraction of females among the workforce
+		"provisionFields" : 2
 	};
 
 	this.distUnitGain = 110*110;   // TODO  take it directly from helpers/TraderGain.js
@@ -84,6 +84,7 @@ m.Config = function(difficulty)
 		"house" : 350,
 		"dropsites" : 200,
 		"field" : 400,
+		"dock" : 90,
 		"economicBuilding" : 90,
 		"militaryBuilding" : 130,
 		"defenseBuilding" : 70,
@@ -136,7 +137,7 @@ m.Config.prototype.setConfig = function(gameState)
 		this.Economy.cityPhase = 1800;
 		this.Economy.popForMarket = 80;
 		this.Economy.femaleRatio = 0.6;
-		this.Economy.provisionFields = 2;
+		this.Economy.provisionFields = 1;
 	}
 	else
 	{

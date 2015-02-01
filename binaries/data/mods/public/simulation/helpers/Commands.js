@@ -975,11 +975,6 @@ function TryConstructBuilding(player, cmpPlayer, controlAllUnits, cmd)
 			"queued": cmd.queued
 		});
 	}
-	
-	// Load a mirage for the owner of this new entity
-	var cmpFogging = Engine.QueryInterface(ent, IID_Fogging)
-	if (cmpFogging)
-		cmpFogging.LoadMirage(player);
 
 	return ent;
 }
@@ -1275,10 +1270,15 @@ function GetFormationUnitAIs(ents, player, formationTemplate)
 		// TODO: We only check if the formation is usable by some units
 		// if we move them to it. We should check if we can use formations
 		// for the other cases.
-		if (cmpIdentity && cmpIdentity.CanUseFormation(formationTemplate || "formations/line_closed"))
+		var nullFormation = (formationTemplate || cmpUnitAI.GetLastFormationTemplate()) == "formations/null";
+		if (!nullFormation && cmpIdentity && cmpIdentity.CanUseFormation(formationTemplate || "formations/line_closed"))
 			formedEnts.push(ent);
 		else
+		{
+			if (nullFormation)
+				cmpUnitAI.SetLastFormationTemplate("formations/null");
 			nonformedUnitAIs.push(cmpUnitAI);
+		}
 	}
 
 	if (formedEnts.length == 0)
@@ -1319,6 +1319,7 @@ function GetFormationUnitAIs(ents, player, formationTemplate)
 			if (cmpFormation)
 				cmpFormation.RemoveMembers(formation.members[fid]);
 		}
+
 		// TODO replace the fixed 60 with something sensible, based on vision range f.e.
 		var formationSeparation = 60;
 		var clusters = ClusterEntities(formation.entities, formationSeparation);
@@ -1358,7 +1359,7 @@ function GetFormationUnitAIs(ents, player, formationTemplate)
 			formationUnitAIs.push(Engine.QueryInterface(formationEnt, IID_UnitAI));
 			cmpFormation.SetFormationSeparation(formationSeparation);
 			cmpFormation.SetMembers(cluster);
-			
+
 			for each (var ent in formationEnts)
 				cmpFormation.RegisterTwinFormation(ent);
 

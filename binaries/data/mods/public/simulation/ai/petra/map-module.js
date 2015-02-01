@@ -38,13 +38,11 @@ m.createObstructionMap = function(gameState, accessIndex, template)
 			for (var y = 0; y < passabilityMap.height; ++y)
 			{
 				var i = x + y*passabilityMap.width;
-				var tilePlayer = (territoryMap.data[i] & m.TERRITORY_PLAYER_MASK);
+				var xter = Math.floor((x+0.5)*passabilityMap.cellSize / territoryMap.cellSize);
+				var yter = Math.floor((y+0.5)*passabilityMap.cellSize / territoryMap.cellSize);
+				var iter = xter + yter*territoryMap.width;
+				var tilePlayer = (territoryMap.data[iter] & m.TERRITORY_PLAYER_MASK);
 				
-				//if (gameState.ai.myIndex !== gameState.ai.accessibility.landPassMap[i])
-				//{
-				//	obstructionTiles[i] = 0;
-				//	continue;
-				//}
 				if (gameState.isPlayerEnemy(tilePlayer) && tilePlayer !== 0)
 				{
 					obstructionTiles[i] = 0;
@@ -100,7 +98,12 @@ m.createObstructionMap = function(gameState, accessIndex, template)
 		
 		for (var i = 0; i < passabilityMap.data.length; ++i)
 		{
-			var tilePlayer = (territoryMap.data[i] & m.TERRITORY_PLAYER_MASK);
+			var x = i % passabilityMap.width;
+			var y = Math.floor(i / passabilityMap.width);
+			var xter = Math.floor((x+0.5)*passabilityMap.cellSize / territoryMap.cellSize);
+			var yter = Math.floor((y+0.5)*passabilityMap.cellSize / territoryMap.cellSize);
+			var iter = xter + yter*territoryMap.width;
+			var tilePlayer = (territoryMap.data[iter] & m.TERRITORY_PLAYER_MASK);
 			var invalidTerritory = (
 				(!buildOwn && tilePlayer == playerID) ||
 				(!buildAlly && gameState.isPlayerAlly(tilePlayer) && tilePlayer != playerID) ||
@@ -115,7 +118,7 @@ m.createObstructionMap = function(gameState, accessIndex, template)
 		}
 	}
 	
-	var map = new API3.Map(gameState.sharedScript, obstructionTiles);
+	var map = new API3.Map(gameState.sharedScript, "passability", obstructionTiles);
 	map.setMaxVal(255);
 	
 	if (template && template.buildDistance())
@@ -143,48 +146,63 @@ m.createObstructionMap = function(gameState, accessIndex, template)
 m.createTerritoryMap = function(gameState)
 {
 	var map = gameState.ai.territoryMap;
-	
-	var ret = new API3.Map(gameState.sharedScript, map.data);	
+
+	var ret = new API3.Map(gameState.sharedScript, "territory", map.data);	
 	ret.getOwner = function(p) { return this.point(p) & m.TERRITORY_PLAYER_MASK; };
 	ret.getOwnerIndex = function(p) { return this.map[p] & m.TERRITORY_PLAYER_MASK; };
 	return ret;
 };
 
-// TODO check if not already done in obstruction maps
+// flag cells around the border of the map (2 if all points into that cell are inaccessible, 1 otherwise) 
 m.createBorderMap = function(gameState)
 {
-	var map = new API3.Map(gameState.sharedScript);
+	var map = new API3.Map(gameState.sharedScript, "territory");
 	var width = map.width;
-	var border = 15;
+	var border = Math.round(60 / map.cellSize);
+	var passabilityMap = gameState.sharedScript.passabilityMap;
+	var obstructionLandMask = gameState.getPassabilityClassMask("default");
+	var obstructionWaterMask = gameState.getPassabilityClassMask("ship");
 	if (gameState.ai.circularMap)
 	{
 		var ic = (width - 1) / 2;
-		var radmax = (ic-3)*(ic-3);	// we assume three inaccessible cells all around 
+		var radcut = (ic - border) * (ic - border);
 		for (var j = 0; j < map.length; ++j)
 		{
 			var dx = j%width - ic;
 			var dy = Math.floor(j/width) - ic;
 			var radius = dx*dx + dy*dy;
-			if (radius > radmax)
-				map.map[j] = 2;
-			else if (radius > (ic - border)*(ic - border))
-				map.map[j] = 1; 
+			if (radius < radcut)
+				continue;
+			map.map[j] = 2;
+			var ind = API3.getMapIndices(j, map, passabilityMap);
+			for (var k of ind)
+			{
+				if ((passabilityMap.data[j] & obstructionLandMask) && (passabilityMap.data[j] & obstructionWaterMask))
+					continue;
+				map.map[j] = 1;
+				break;
+			}
 		}
 	}
 	else
 	{
+		var borderCut = width - border;
 		for (var j = 0; j < map.length; ++j)
 		{
 			var ix = j%width;
 			var iy = Math.floor(j/width);
-			if (ix < border || ix >= width - border)
-				map.map[j] = 1; 
-			if (iy < border || iy >= width - border)
-				map.map[j] = 1;
-			if (ix < 3 || ix >= width - 3)	// we assume three inaccessible cells all around
-				map.map[j] = 2; 
-			if (iy < 3 || iy >= width - 3)
+			if (ix < border || ix >= borderCut || iy < border || iy >= borderCut)
+			{
 				map.map[j] = 2;
+				var ind = API3.getMapIndices(j, map, passabilityMap);
+				for (var k of ind)
+				{
+					if ((passabilityMap.data[j] & obstructionLandMask) && (passabilityMap.data[j] & obstructionWaterMask))
+						continue;
+					map.map[j] = 1;
+					break;
+				}
+			}
 		}
 	}
 
@@ -193,19 +211,20 @@ m.createBorderMap = function(gameState)
 };
 
 // map of our frontier : 2 means narrow border, 1 means large border
-m.createFrontierMap = function(gameState, borderMap)
+m.createFrontierMap = function(gameState)
 {
 	var territoryMap = gameState.ai.HQ.territoryMap;
+	var borderMap = gameState.ai.HQ.borderMap;
 	const around = [ [-0.7,0.7], [0,1], [0.7,0.7], [1,0], [0.7,-0.7], [0,-1], [-0.7,-0.7], [-1,0] ];
 
-	var map = new API3.Map(gameState.sharedScript);
+	var map = new API3.Map(gameState.sharedScript, "territory");
 	var width = map.width;
-	var insideSmall = 10;
-	var insideLarge = 15;
+	var insideSmall = Math.round(40 / map.cellSize);
+	var insideLarge = Math.round(60 / map.cellSize);
 
 	for (var j = 0; j < territoryMap.length; ++j)
 	{
-		if (territoryMap.getOwnerIndex(j) !== PlayerID || (borderMap && borderMap.map[j] > 1))
+		if (territoryMap.getOwnerIndex(j) !== PlayerID || borderMap.map[j] > 1)
 			continue;
 		var ix = j%width;
 		var iz = Math.floor(j/width);
@@ -217,7 +236,7 @@ m.createFrontierMap = function(gameState, borderMap)
 			var jz = iz + Math.round(insideSmall*a[1]);
 			if (jz < 0 || jz >= width)
 				continue;
-			if (borderMap && borderMap.map[jx+width*jz] > 1)
+			if (borderMap.map[jx+width*jz] > 1)
 				continue;
 			if (!gameState.isPlayerAlly(territoryMap.getOwnerIndex(jx+width*jz)))
 			{
@@ -230,7 +249,7 @@ m.createFrontierMap = function(gameState, borderMap)
 			jz = iz + Math.round(insideLarge*a[1]);
 			if (jz < 0 || jz >= width)
 				continue;
-			if (borderMap && borderMap.map[jx+width*jz] > 1)
+			if (borderMap.map[jx+width*jz] > 1)
 				continue;
 			if (!gameState.isPlayerAlly(territoryMap.getOwnerIndex(jx+width*jz)))
 				map.map[j] = 1;
@@ -241,16 +260,16 @@ m.createFrontierMap = function(gameState, borderMap)
 	return map;
 };
 
-// return an measure of the proximity to our frontier (including our allies)
-// 0=inside, 1=less than 3 tiles, 2= less than 6 tiles, 3= less than 9 tiles, 4=less than 12 tiles, 5=above 12 tiles
-m.getFrontierProximity = function(gameState, j, borderMap)
+// return a measure of the proximity to our frontier (including our allies)
+// 0=inside, 1=less than 16m, 2= less than 32m, 3= less than 48m, 4=less than 64m, 5=above 64m
+m.getFrontierProximity = function(gameState, j)
 {
-	var territoryMap =  gameState.ai.HQ.territoryMap;
+	var territoryMap = gameState.ai.HQ.territoryMap;
+	var borderMap = gameState.ai.HQ.borderMap;
 	const around = [ [-0.7,0.7], [0,1], [0.7,0.7], [1,0], [0.7,-0.7], [0,-1], [-0.7,-0.7], [-1,0] ];
 
-	var map = new API3.Map(gameState.sharedScript);
 	var width = territoryMap.width;
-	const step = 3;
+	var step = Math.round(16 / territoryMap.cellSize);
 
 	if (gameState.isPlayerAlly(territoryMap.getOwnerIndex(j)))
 		return 0;
@@ -268,7 +287,7 @@ m.getFrontierProximity = function(gameState, j, borderMap)
 			var jz = iz + Math.round(i*step*a[1]);
 			if (jz < 0 || jz >= width)
 				continue;
-			if (borderMap && borderMap.map[jx+width*jz] > 1)
+			if (borderMap.map[jx+width*jz] > 1)
 				continue;
 			if (gameState.isPlayerAlly(territoryMap.getOwnerIndex(jx+width*jz)))
 			{
