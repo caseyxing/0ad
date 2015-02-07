@@ -11,12 +11,12 @@
   <Cost>
     <BuildTime>10</BuildTime>
     <Resources>
-      <food>0</food>
-      <metal>50</metal>
+      <food>25</food>
+      <metal>25</metal>
     </Resources>
   </Cost>
   <Health>
-    <Max>50</Max>
+    <Max>30</Max>
   </Health>
   <Identity>
     <Civ>ptol</Civ>
