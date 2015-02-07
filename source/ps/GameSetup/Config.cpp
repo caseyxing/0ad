@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 Wildfire Games.
+/* Copyright (C) 2015 Wildfire Games.
  * This file is part of 0 A.D.
  *
  * 0 A.D. is free software: you can redistribute it and/or modify
@@ -24,7 +24,6 @@
 #include "ps/CLogger.h"
 #include "ps/ConfigDB.h"
 #include "ps/GameSetup/CmdLineArgs.h"
-#include "soundmanager/ISoundManager.h"
 
 // (these variables are documented in the header.)
 
@@ -57,6 +56,7 @@ float g_Gamma = 1.0f;
 CStr g_RenderPath = "default";
 
 int g_xres, g_yres;
+float g_GuiScale = 1.0f;
 bool g_VSync = false;
 
 bool g_Quickstart = false;
@@ -104,38 +104,17 @@ static void LoadGlobals()
 	CFG_GET_VAL("particles", g_Particles);
 	CFG_GET_VAL("silhouettes", g_Silhouettes);
 	CFG_GET_VAL("showsky", g_ShowSky);
-
-	if (g_SoundManager)
-	{
-		float gain = 0.5f;
-		float musicGain = 0.5f;
-		float ambientGain = 0.5f;
-		float actionGain = 0.5f;
-		float uiGain = 0.5f;
-
-		CFG_GET_VAL("sound.mastergain", gain);
-		CFG_GET_VAL("sound.musicgain", musicGain);
-		CFG_GET_VAL("sound.ambientgain", ambientGain);
-		CFG_GET_VAL("sound.actiongain", actionGain);
-		CFG_GET_VAL("sound.uigain", uiGain);
-
-		g_SoundManager->SetMasterGain(gain);
-		g_SoundManager->SetMusicGain(musicGain);
-		g_SoundManager->SetAmbientGain(ambientGain);
-		g_SoundManager->SetActionGain(actionGain);
-		g_SoundManager->SetUIGain(uiGain);
-	}
-
+	CFG_GET_VAL("gui.scale", g_GuiScale);
 
 	CFG_GET_VAL("jsdebugger.enable", g_JSDebuggerEnabled);
 	CFG_GET_VAL("profiler2.script.enable", g_ScriptProfilingEnabled);
 
 	if (g_JSDebuggerEnabled)
-		LOGERROR(L"JS debugger temporarily disabled during the SpiderMonkey upgrade (check trac ticket #2348 for details)");
+		LOGERROR("JS debugger temporarily disabled during the SpiderMonkey upgrade (check trac ticket #2348 for details)");
 	// Script Debugging and profiling does not make sense together because of the hooks
 	// that reduce performance a lot - and it wasn't tested if it even works together.
 	if (g_JSDebuggerEnabled && g_ScriptProfilingEnabled)
-		LOGERROR(L"Enabling both script profiling and script debugging is not supported!");
+		LOGERROR("Enabling both script profiling and script debugging is not supported!");
 }
 
 

@@ -581,11 +581,15 @@ COMMAND(MoveObjects, MERGE,
 		((Position, pos))
 		);
 
-COMMAND(RotateObject, MERGE,
-		((ObjectID, id))
-		((bool, usetarget)) // true => use 'target' for orientation; false => use 'angle'
+COMMAND(RotateObjectsFromCenterPoint, MERGE,
+		((std::vector<ObjectID>, ids))
 		((Position, target))
-		((float, angle))
+		((bool, rotateObject))
+		);
+
+COMMAND(RotateObject, MERGE,
+		((std::vector<ObjectID>, ids))
+		((Position, target))
 		);
 
 COMMAND(DeleteObjects, NOMERGE,
@@ -691,6 +695,12 @@ QUERY(GetWorldPosition,
 MESSAGE(TriggerToggleSelector,
 		((bool, enable))
 		((Position, position))
+		);
+
+QUERY(GetSelectedObjectsTemplateNames,
+		((std::vector<ObjectID>, ids))
+		,
+		((std::vector<std::string>, names))
 		);
 
 

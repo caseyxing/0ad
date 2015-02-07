@@ -128,6 +128,17 @@ GuiInterface.prototype.GetSimulationState = function(player)
 	var cmpBarter = Engine.QueryInterface(SYSTEM_ENTITY, IID_Barter);
 	ret.barterPrices = cmpBarter.GetPrices();
 
+	// Add basic statistics to each player
+	var cmpPlayerMan = Engine.QueryInterface(SYSTEM_ENTITY, IID_PlayerManager);
+	var n = cmpPlayerMan.GetNumPlayers();
+	for (var i = 0; i < n; ++i)
+	{
+		var playerEnt = cmpPlayerMan.GetPlayerByID(i);
+		var cmpPlayerStatisticsTracker = Engine.QueryInterface(playerEnt, IID_StatisticsTracker);
+		if (cmpPlayerStatisticsTracker)
+			ret.players[i].statistics = cmpPlayerStatisticsTracker.GetBasicStatistics();
+	}
+
 	return ret;
 };
 
@@ -381,7 +392,7 @@ GuiInterface.prototype.GetEntityState = function(player, ent)
 	}
 
 	var cmpRangeManager = Engine.QueryInterface(SYSTEM_ENTITY, IID_RangeManager);
-	ret.visibility = cmpRangeManager.GetLosVisibility(ent, player, false);
+	ret.visibility = cmpRangeManager.GetLosVisibility(ent, player);
 
 	return ret;
 };
@@ -1433,10 +1444,8 @@ GuiInterface.prototype.SetWallPlacementPreview = function(player, cmd)
 		cmpOwnership.SetOwner(player);
 		
 		// Check whether it's in a visible or fogged region
-		//  tell GetLosVisibility to force RetainInFog because preview entities set this to false,
-		//	which would show them as hidden instead of fogged
 		// TODO: should definitely reuse SetBuildingPlacementPreview, this is just straight up copy/pasta
-		var visible = (cmpRangeManager.GetLosVisibility(ent, player, true) != "hidden");
+		var visible = (cmpRangeManager.GetLosVisibility(ent, player) != "hidden");
 		if (visible)
 		{
 			var cmpBuildRestrictions = Engine.QueryInterface(ent, IID_BuildRestrictions);

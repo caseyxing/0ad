@@ -155,7 +155,10 @@ function updateSubject(newSubject)
 function updatePlayerList()
 {
 	var playersBox = Engine.GetGUIObjectByName("playersBox");
-	[playerList, presenceList, nickList, ratingList] = [[],[],[],[]];
+	var playerList = [];
+	var presenceList = [];
+	var nickList = [];
+	var ratingList = [];
 	var cleanPlayerList = Engine.GetPlayerList();
 	// Sort the player list, ignoring case.
 	cleanPlayerList.sort(function(a,b) 
@@ -746,35 +749,6 @@ function submitChatInput()
 		if (!handleSpecialCommand(text) && !isSpam(text, g_Name))
 			Engine.LobbySendMessage(text);
 		input.caption = "";
-	}
-}
-
-function completeNick()
-{
-	var input = Engine.GetGUIObjectByName("chatInput");
-	var text = escapeText(input.caption);
-	if (text.length)
-	{
-		var matched = false;
-		for each (var playerObj in Engine.GetPlayerList())
-		{
-			var player = playerObj.name;
-			var breaks = text.match(/(\s+)/g) || [];
-			text.split(/\s+/g).reduceRight(function (wordsSoFar, word, index)
-			{
-				if (matched)
-					return null;
-				var matchCandidate = word + (breaks[index - 1] || "") + wordsSoFar;
-				if (player.toUpperCase().indexOf(matchCandidate.toUpperCase().trim()) == 0)
-				{
-					input.caption = text.replace(matchCandidate.trim(), player);
-					matched = true;
-				}
-				return matchCandidate;
-			}, "");
-		if (matched)
-			break;
-		}
 	}
 }
 

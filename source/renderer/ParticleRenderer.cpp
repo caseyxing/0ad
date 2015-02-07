@@ -104,6 +104,7 @@ void ParticleRenderer::PrepareForRendering(const CShaderDefines& context)
 		{
 			CParticleEmitter* emitter = m->emitters[cullGroup][i];
 			emitter->UpdateArrayData(m->frameNumber);
+			emitter->PrepareForRendering();
 		}
 	}
 
@@ -128,6 +129,7 @@ void ParticleRenderer::RenderParticles(int cullGroup, bool solidColor)
 	shader->BeginPass();
 
 	shader->GetShader()->Uniform(str_transform, g_Renderer.GetViewCamera().GetViewProjection());
+	shader->GetShader()->Uniform(str_modelViewMatrix, g_Renderer.GetViewCamera().GetOrientation().GetInverse());
 
 	if (!solidColor)
 		glEnable(GL_BLEND);

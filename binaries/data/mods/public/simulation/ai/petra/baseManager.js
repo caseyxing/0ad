@@ -16,18 +16,20 @@ m.BaseManager = function(gameState, Config)
 {
 	this.Config = Config;
 	this.ID = gameState.ai.uniqueIDs.bases++;
-	
+
 	// anchor building: seen as the main building of the base. Needs to have territorial influence
 	this.anchor = undefined;
 	this.anchorId = undefined;
 	this.accessIndex = undefined;
-	
+
 	// Maximum distance (from any dropsite) to look for resources
 	// 3 areas are used: from 0 to max/4, from max/4 to max/2 and from max/2 to max 
 	this.maxDistResourceSquare = 360*360;
-	
+
 	this.constructing = false;
-	
+	// Defenders to train in this cc when its construction is finished 
+	this.neededDefenders = ((this.Config.difficulty > 2) ? 3 + 2*(this.Config.difficulty - 3) : 0);
+
 	// vector for iterating, to check one use the HQ map.
 	this.territoryIndices = [];
 };
@@ -36,6 +38,8 @@ m.BaseManager.prototype.init = function(gameState, unconstructed)
 {
 	if (unconstructed !== undefined)
 		this.constructing = unconstructed;
+	else
+		this.neededDefenders = 0;
 	this.workerObject = new m.Worker(this);
 	// entitycollections
 	this.units = gameState.getOwnUnits().filter(API3.Filters.byMetadata(PlayerID, "base", this.ID));
@@ -110,6 +114,7 @@ m.BaseManager.prototype.checkEvents = function (gameState, events, queues)
 				// sounds like we lost our anchor. Let's reaffect our units and buildings
 				this.anchor = undefined;
 				this.anchorId = undefined;
+				this.neededDefenders = 0;
 				let bestbase = m.getBestBase(ent, gameState);
 				this.newbaseID = bestbase.ID;
 				for (let entity of this.units.values())
@@ -494,7 +499,7 @@ m.BaseManager.prototype.checkResourceLevels = function (gameState, queues)
 	
 };
 
-// let's return the estimated gather rates.
+// Adds the estimated gather rates from this base to the currentRates
 m.BaseManager.prototype.getGatherRates = function(gameState, currentRates)
 {
 	for (var i in currentRates)
@@ -504,25 +509,22 @@ m.BaseManager.prototype.getGatherRates = function(gameState, currentRates)
 		// Given that the faster you gather, the more travel time matters,
 		// I use some logarithms.
 		// TODO: this should take into account for unit speed and/or distance to target
-		
-		var units = this.gatherersByType(gameState, i);
-		units.forEach(function (ent) {
+
+		this.gatherersByType(gameState, i).forEach(function (ent) {
 			var gRate = ent.currentGatherRate();
 			if (gRate !== undefined)
 				currentRates[i] += Math.log(1+gRate)/1.1;
 		});
 		if (i === "food")
 		{
-			units = this.workers.filter(API3.Filters.byMetadata(PlayerID, "subrole", "hunter"));
-			units.forEach(function (ent) {
+			this.workersBySubrole(gameState, "hunter").forEach(function (ent) {
 				if (ent.isIdle())
 					return;
 				var gRate = ent.currentGatherRate()
 				if (gRate !== undefined)
 					currentRates[i] += Math.log(1+gRate)/1.1;
 			});
-			units = this.workers.filter(API3.Filters.byMetadata(PlayerID, "subrole", "fisher"));
-			units.forEach(function (ent) {
+			this.workersBySubrole(gameState, "fisher").forEach(function (ent) {
 				if (ent.isIdle())
 					return;
 				var gRate = ent.currentGatherRate()
@@ -609,7 +611,7 @@ m.BaseManager.prototype.setWorkersIdleByPriority = function(gameState)
 m.BaseManager.prototype.reassignIdleWorkers = function(gameState)
 {
 	// Search for idle workers, and tell them to gather resources based on demand
-	var filter = API3.Filters.or(API3.Filters.byMetadata(PlayerID,"subrole","idle"), API3.Filters.not(API3.Filters.byHasMetadata(PlayerID,"subrole")));
+	var filter = API3.Filters.byMetadata(PlayerID, "subrole", "idle");
 	var idleWorkers = gameState.updatingCollection("idle-workers-base-" + this.ID, filter, this.workers);
 
 	var self = this;
@@ -781,7 +783,7 @@ m.BaseManager.prototype.assignToFoundations = function(gameState, noRepair)
 		var assigned = gameState.getOwnEntitiesByMetadata("target-foundation", target.id()).length;
 		var maxTotalBuilders = Math.ceil(workers.length * 0.2);
 		var targetNB = 2;
-		if (target.hasClass("House") || target.hasClass("Market"))
+		if (target.hasClass("House") || target.hasClass("Market") || target.hasClass("DropsiteWood"))
 			targetNB = 3;
 		else if (target.hasClass("Barracks") || target.hasClass("Tower"))
 			targetNB = 4;
@@ -994,6 +996,8 @@ m.BaseManager.prototype.update = function(gameState, queues, events)
 			}
 		}
 	}
+	else if (this.neededDefenders && gameState.ai.HQ.trainEmergencyUnits(gameState, [this.anchor.position()]))
+		--this.neededDefenders;
 
 	if (gameState.ai.playedTurn % 2 === 0 && gameState.currentPhase() > 1)
 		this.setWorkersIdleByPriority(gameState);
@@ -1016,6 +1020,7 @@ m.BaseManager.prototype.Serialize = function()
 		"maxDistResourceSquare": this.maxDistResourceSquare,
 		"constructing": this.constructing,
 		"gatherers": this.gatherers,
+		"neededDefenders": this.neededDefenders,
 		"territoryIndices": this.territoryIndices
 	};
 };

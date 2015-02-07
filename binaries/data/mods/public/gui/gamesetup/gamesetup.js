@@ -74,6 +74,9 @@ var g_AssignedCount = 0;
 // tick handler
 var g_LoadingState = 0; // 0 = not started, 1 = loading, 2 = loaded
 
+// Filled by scripts in victory_conditions/
+var g_VictoryConditions = {};
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 function init(attribs)
@@ -943,6 +946,12 @@ function selectMap(name)
 
 	var mapData = loadMapData(name);
 	var mapSettings = (mapData && mapData.settings ? deepcopy(mapData.settings) : {});
+
+	// Reset victory conditions
+	var victories = getVictoryConditions();
+	var victoryIdx = (mapSettings.GameType !== undefined && victories.data.indexOf(mapSettings.GameType) != -1 ? victories.data.indexOf(mapSettings.GameType) : VICTORY_DEFAULTIDX);
+	g_GameAttributes.settings.GameType = victories.data[victoryIdx];
+	g_GameAttributes.settings.VictoryScripts = victories.scripts[victoryIdx];
 
 	// Copy any new settings
 	g_GameAttributes.map = name;
@@ -1938,7 +1947,7 @@ function getVictoryConditions()
 	var r = {};
 	r.text = [translate("None")];
 	r.data = ["endless"];
-	r.scripts = [[""]];
+	r.scripts = [[]];
 	for (var vc in g_VictoryConditions)
 	{
 		r.data.push(vc);
