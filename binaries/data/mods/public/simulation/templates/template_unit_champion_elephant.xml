@@ -70,7 +70,7 @@
     </Run>
   </UnitMotion>
   <Vision>
-    <Range>80</Range>
+    <Range>100</Range>
   </Vision>
   <VisualActor>
     <Actor>units/mauryans/champion_elephant.xml</Actor>
